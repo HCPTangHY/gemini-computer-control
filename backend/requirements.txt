@@ -1,0 +1,8 @@
+flask==3.0.0
+flask-cors==4.0.0
+requests==2.31.0
+python-dotenv==1.0.0
+playwright==1.40.0
+pyperclip==1.9.0
+pyautogui==0.9.54
+Pillow==10.1.0

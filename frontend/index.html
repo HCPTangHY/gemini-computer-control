@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini计算机控制 - 截图测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .preview-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .preview-title {
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .image-container {
+            position: relative;
+            display: none;
+            margin-bottom: 15px;
+        }
+
+        #screenshotPreview {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: block;
+        }
+
+        #clickCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            display: none;
+            margin-top: 15px;
+        }
+
+        .result-box.success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+        }
+
+        .result-box.error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+        }
+
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .result-content {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #555;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.online {
+            background: #28a745;
+            box-shadow: 0 0 8px #28a745;
+        }
+
+        .status-indicator.offline {
+            background: #dc3545;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Gemini计算机控制</h1>
+        <p class="subtitle">基于Gemini AI的屏幕分析与自动点击系统</p>
+
+        <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+            <a href="playwright_sandbox.html" style="text-decoration: none; color: #667eea; font-weight: bold;">🌐 浏览器沙盒</a>
+            <span style="color: #ccc;">|</span>
+            <a href="real_computer_sandbox.html" style="text-decoration: none; color: #ff9a9e; font-weight: bold;">🖥️ 真实电脑沙盒</a>
+        </div>
+
+        <div class="info-box">
+            <strong>使用说明：</strong><br>
+            1. 选择操作模式：<strong>浏览器模式</strong> (Playwright) 或 <strong>真实电脑模式</strong> (PyAutoGUI)<br>
+            2. 点击"截取屏幕"按钮进行截图<br>
+            3. 输入指令（可选），然后点击"发送给AI分析"<br>
+            4. AI将返回建议的操作并自动执行（在真实电脑模式下）
+        </div>
+
+        <div class="control-panel">
+            <div class="input-group">
+                <label for="controlMode">操作模式</label>
+                <select id="controlMode" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    <option value="browser">浏览器模式 (Playwright)</option>
+                    <option value="real">真实电脑模式 (PyAutoGUI)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="backendUrl">
+                    <span class="status-indicator offline" id="statusIndicator"></span>
+                    后端服务地址
+                </label>
+                <input 
+                    type="text" 
+                    id="backendUrl" 
+                    value="http://localhost:5000"
+                    placeholder="http://localhost:5000"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="instruction">AI指令（可选）</label>
+                <textarea 
+                    id="instruction" 
+                    placeholder="例如：点击屏幕中央的按钮"
+                ></textarea>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-secondary" onclick="captureScreen()">
+                    📸 截取屏幕
+                </button>
+                <button class="btn-primary" id="analyzeBtn" onclick="analyzeScreenshot()" disabled>
+                    🚀 发送给AI分析
+                </button>
+            </div>
+        </div>
+
+        <div class="preview-section">
+            <div class="preview-title">截图预览</div>
+            <div class="image-container" id="imageContainer">
+                <img id="screenshotPreview" alt="截图预览">
+                <canvas id="clickCanvas"></canvas>
+            </div>
+            
+            <div id="resultBox" class="result-box">
+                <div class="result-title">AI分析结果</div>
+                <div class="result-content" id="resultContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentScreenshot = null;
+        let screenshotWidth = 0;
+        let screenshotHeight = 0;
+        let normalizedX = 0;
+        let normalizedY = 0;
+
+        // 检查后端服务状态
+        async function checkBackendStatus() {
+            const url = document.getElementById('backendUrl').value;
+            const indicator = document.getElementById('statusIndicator');
+            
+            try {
+                const response = await fetch(`${url}/health`);
+                if (response.ok) {
+                    indicator.classList.remove('offline');
+                    indicator.classList.add('online');
+                    return true;
+                }
+            } catch (error) {
+                console.error('后端服务连接失败:', error);
+            }
+            
+            indicator.classList.remove('online');
+            indicator.classList.add('offline');
+            return false;
+        }
+
+        // 页面加载时检查后端状态
+        window.addEventListener('load', () => {
+            checkBackendStatus();
+            // 每5秒检查一次
+            setInterval(checkBackendStatus, 5000);
+        });
+
+        // 绘制点击标记
+        function drawClickMarker(x, y, reasoning, normalized_x, normalized_y) {
+            const preview = document.getElementById('screenshotPreview');
+            const canvas = document.getElementById('clickCanvas');
+            const container = document.getElementById('imageContainer');
+            
+            // 设置canvas尺寸与图片一致
+            canvas.width = preview.offsetWidth;
+            canvas.height = preview.offsetHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 计算缩放比例（从实际屏幕尺寸到显示尺寸）
+            const scaleX = preview.offsetWidth / screenshotWidth;
+            const scaleY = preview.offsetHeight / screenshotHeight;
+            
+            // 转换坐标（x, y已经是实际像素坐标）
+            const displayX = x * scaleX;
+            const displayY = y * scaleY;
+            
+            // 保存归一化坐标
+            normalizedX = normalized_x;
+            normalizedY = normalized_y;
+            
+            // 绘制外圈（红色）
+            ctx.beginPath();
+            ctx.arc(displayX, displayY, 20, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // 绘制内圈（白色）
+            ctx.beginPath();
+            ctx.arc(displayX, displayY, 15, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 绘制中心点
+            ctx.beginPath();
+            ctx.arc(displayX, displayY, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ff0000';
+            ctx.fill();
+            
+            // 绘制十字线
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(displayX - 25, displayY);
+            ctx.lineTo(displayX + 25, displayY);
+            ctx.moveTo(displayX, displayY - 25);
+            ctx.lineTo(displayX, displayY + 25);
+            ctx.stroke();
+            
+            // 绘制坐标文本背景
+            const text = `像素: (${x}, ${y})`;
+            const normText = `归一化: (${normalized_x}, ${normalized_y})`;
+            ctx.font = 'bold 12px Arial';
+            const textWidth = Math.max(ctx.measureText(text).width, ctx.measureText(normText).width);
+            const textX = displayX + 30;
+            const textY = displayY - 20;
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(textX - 5, textY - 16, textWidth + 10, 40);
+            
+            // 绘制坐标文本
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, textX, textY);
+            ctx.fillText(normText, textX, textY + 16);
+            
+            // 如果有reasoning，也显示
+            if (reasoning) {
+                const reasonText = reasoning.length > 30 ? reasoning.substring(0, 30) + '...' : reasoning;
+                ctx.font = '12px Arial';
+                const reasonWidth = ctx.measureText(reasonText).width;
+                const reasonX = displayX + 30;
+                const reasonY = displayY + 15;
+                
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(reasonX - 5, reasonY - 14, reasonWidth + 10, 20);
+                
+                ctx.fillStyle = '#ffff00';
+                ctx.fillText(reasonText, reasonX, reasonY);
+            }
+        }
+
+        // 截取屏幕
+        async function captureScreen() {
+            const mode = document.getElementById('controlMode').value;
+            const backendUrl = document.getElementById('backendUrl').value;
+
+            if (mode === 'real') {
+                // 真实电脑模式：从后端获取截图
+                try {
+                    const response = await fetch(`${backendUrl}/real/screenshot`);
+                    const data = await response.json();
+                    if (data.success) {
+                        currentScreenshot = data.screenshot;
+                        screenshotWidth = data.width;
+                        screenshotHeight = data.height;
+                        
+                        displayScreenshot();
+                        alert('✅ 成功从后端获取真实屏幕截图！');
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    console.error('获取后端截图失败:', error);
+                    alert('❌ 获取后端截图失败: ' + error.message);
+                }
+            } else {
+                // 浏览器模式：使用浏览器 API 截图
+                try {
+                    const stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { mediaSource: 'screen' }
+                    });
+
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+
+                    await new Promise(resolve => { video.onloadedmetadata = resolve; });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    screenshotWidth = canvas.width;
+                    screenshotHeight = canvas.height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+
+                    stream.getTracks().forEach(track => track.stop());
+                    currentScreenshot = canvas.toDataURL('image/png');
+
+                    displayScreenshot();
+                    alert('✅ 浏览器截图成功！');
+                } catch (error) {
+                    console.error('浏览器截图失败:', error);
+                    alert('❌ 浏览器截图失败: ' + error.message);
+                }
+            }
+        }
+
+        function displayScreenshot() {
+            const preview = document.getElementById('screenshotPreview');
+            const container = document.getElementById('imageContainer');
+            const clickCanvas = document.getElementById('clickCanvas');
+            
+            preview.src = currentScreenshot;
+            container.style.display = 'block';
+            
+            const ctx2 = clickCanvas.getContext('2d');
+            ctx2.clearRect(0, 0, clickCanvas.width, clickCanvas.height);
+
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('resultBox').style.display = 'none';
+        }
+
+        // 发送截图给AI分析
+        async function analyzeScreenshot() {
+            if (!currentScreenshot) {
+                alert('请先截取屏幕！');
+                return;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+            const instruction = document.getElementById('instruction').value;
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const resultBox = document.getElementById('resultBox');
+            const resultContent = document.getElementById('resultContent');
+
+            // 检查后端状态
+            const isOnline = await checkBackendStatus();
+            if (!isOnline) {
+                alert('❌ 后端服务未连接，请检查服务是否启动！');
+                return;
+            }
+
+            // 禁用按钮并显示加载状态
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '🔄 分析中<span class="loading"></span>';
+
+            try {
+                const response = await fetch(`${backendUrl}/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: currentScreenshot,
+                        screen_width: screenshotWidth,
+                        screen_height: screenshotHeight,
+                        instruction: instruction || '请分析这张截图，找到一个合适的位置进行点击。'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    resultBox.className = 'result-box success';
+                    resultBox.style.display = 'block';
+                    resultContent.textContent = JSON.stringify(data, null, 2);
+                    
+                    const mode = document.getElementById('controlMode').value;
+                    
+                    // 检查是否是多工具调用
+                    if (data.type === 'multiple_function_calls') {
+                        // 多工具调用
+                        let message = `✅ AI返回了 ${data.count} 个操作步骤：\n\n`;
+                        
+                        for (const result of data.results) {
+                            if (result.success) {
+                                // 如果是真实电脑模式，自动执行操作
+                                if (mode === 'real') {
+                                    await executeRealAction(result);
+                                }
+                            }
+                        }
+                        
+                        data.results.forEach((result, index) => {
+                            const step = index + 1;
+                            if (result.success) {
+                                message += `步骤${step}: ${result.function_name}\n`;
+                                if (result.action === 'click') {
+                                    message += `  - 点击坐标: (${result.x}, ${result.y})\n`;
+                                } else if (result.action === 'type') {
+                                    message += `  - 输入文本: "${result.text.substring(0, 30)}..."\n`;
+                                }
+                                message += `  - 原因: ${result.reasoning}\n\n`;
+                            }
+                        });
+                        
+                        // 标记第一个操作
+                        const firstResult = data.results[0];
+                        if (firstResult.success && (firstResult.action === 'click' || firstResult.action === 'hover')) {
+                            drawClickMarker(firstResult.x, firstResult.y, `步骤1: ${firstResult.reasoning}`, firstResult.normalized_x || firstResult.x, firstResult.normalized_y || firstResult.y);
+                        }
+                        
+                        alert(message + (mode === 'real' ? "\n⚡ 所有操作已在真实电脑上执行！" : ""));
+                    } else {
+                        // 单工具调用
+                        if (mode === 'real') {
+                            await executeRealAction(data);
+                        }
+
+                        if ((data.action === 'click' || data.action === 'hover') && data.x !== undefined && data.y !== undefined) {
+                            drawClickMarker(data.x, data.y, data.reasoning, data.normalized_x || data.x, data.normalized_y || data.y);
+                        }
+                        
+                        alert(`✅ AI分析成功！${mode === 'real' ? "\n⚡ 操作已在真实电脑上执行！" : ""}`);
+                    }
+                } else {
+                    resultBox.className = 'result-box error';
+                    resultBox.style.display = 'block';
+                    resultContent.textContent = `错误: ${data.error}`;
+                    
+                    alert('❌ AI分析失败: ' + data.error);
+                }
+            } catch (error) {
+                console.error('请求失败:', error);
+                resultBox.className = 'result-box error';
+                resultBox.style.display = 'block';
+                resultContent.textContent = `网络错误: ${error.message}`;
+                
+                alert('❌ 请求失败: ' + error.message);
+            } finally {
+                // 恢复按钮状态
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '🚀 发送给AI分析';
+            }
+        }
+
+        async function executeRealAction(action) {
+            const backendUrl = document.getElementById('backendUrl').value;
+            try {
+                const response = await fetch(`${backendUrl}/real/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('执行真实操作失败:', error);
+            }
+        }
+    </script>
+</body>
+</html>

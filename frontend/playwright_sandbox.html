@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright 浏览器沙盒 - Gemini计算机控制</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.online {
+            background: #28a745;
+            box-shadow: 0 0 8px #28a745;
+        }
+
+        .status-indicator.offline {
+            background: #dc3545;
+        }
+
+        .browser-preview {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .preview-title {
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .browser-frame {
+            border: 3px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f5f5f5;
+            display: none;
+        }
+
+        .browser-frame.active {
+            display: block;
+        }
+
+        .browser-toolbar {
+            background: #e0e0e0;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .browser-toolbar input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .browser-content {
+            background: white;
+            min-height: 400px;
+            position: relative;
+        }
+
+        #browserScreenshot {
+            width: 100%;
+            display: block;
+        }
+
+        .log-panel {
+            margin-top: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+
+        .log-entry.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .log-entry.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .log-entry.info {
+            border-left-color: #17a2b8;
+            background: #d1ecf1;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Playwright 浏览器沙盒</h1>
+        <p class="subtitle">基于 Playwright 的实时浏览器控制系统</p>
+
+        <div class="info-box">
+            <strong>使用说明：</strong><br>
+            1. 配置后端服务地址和目标URL<br>
+            2. 点击"启动浏览器"打开 Playwright 控制的浏览器<br>
+            3. 输入AI指令，系统将自动执行操作<br>
+            4. 查看实时截图和操作日志
+        </div>
+
+        <div class="control-panel">
+            <div class="input-group">
+                <label for="backendUrl">
+                    <span class="status-indicator offline" id="statusIndicator"></span>
+                    后端服务地址
+                </label>
+                <input 
+                    type="text" 
+                    id="backendUrl" 
+                    value="http://localhost:5000"
+                    placeholder="http://localhost:5000"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="targetUrl">目标网页URL</label>
+                <input 
+                    type="text" 
+                    id="targetUrl" 
+                    value="https://www.google.com"
+                    placeholder="https://example.com"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="browserWidth">浏览器宽度</label>
+                <input 
+                    type="number" 
+                    id="browserWidth" 
+                    value="1280"
+                    min="800"
+                    max="1920"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="browserHeight">浏览器高度</label>
+                <input 
+                    type="number" 
+                    id="browserHeight" 
+                    value="720"
+                    min="600"
+                    max="1080"
+                >
+            </div>
+
+            <div class="input-group">
+                <label for="agentMode">执行模式</label>
+                <select id="agentMode">
+                    <option value="manual">手动模式</option>
+                    <option value="step">Agent单步模式</option>
+                    <option value="auto">Agent自动模式</option>
+                </select>
+            </div>
+
+            <div class="input-group full-width">
+                <label for="instruction">AI指令/任务</label>
+                <textarea
+                    id="instruction"
+                    placeholder="例如：点击搜索框并输入'Playwright'，然后点击搜索按钮"
+                ></textarea>
+            </div>
+
+            <div class="input-group full-width">
+                <div class="button-group">
+                    <button class="btn-primary" id="launchBtn" onclick="launchBrowser()">
+                        🚀 启动浏览器
+                    </button>
+                    <button class="btn-secondary" id="executeBtn" onclick="executeTask()" disabled>
+                        ⚡ 执行任务
+                    </button>
+                    <button class="btn-secondary" id="continueBtn" onclick="continueAgent()" disabled style="display:none;">
+                        ▶️ 继续
+                    </button>
+                    <button class="btn-secondary" id="screenshotBtn" onclick="takeScreenshot()" disabled>
+                        📸 截图
+                    </button>
+                    <button class="btn-danger" id="closeBtn" onclick="closeBrowser()" disabled>
+                        ❌ 关闭浏览器
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="browser-preview">
+            <div class="preview-title">
+                <span>浏览器预览</span>
+                <span id="browserStatus" style="font-size: 12px; color: #999;">未启动</span>
+            </div>
+            
+            <div class="browser-frame" id="browserFrame">
+                <div class="browser-toolbar">
+                    <span>🌐</span>
+                    <input type="text" id="currentUrl" readonly placeholder="当前URL">
+                </div>
+                <div class="browser-content">
+                    <img id="browserScreenshot" alt="浏览器截图">
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="actionCount">0</div>
+                    <div class="stat-label">执行操作数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="successCount">0</div>
+                    <div class="stat-label">成功次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div class="stat-label">错误次数</div>
+                </div>
+            </div>
+
+            <div class="log-panel">
+                <div class="log-title">操作日志</div>
+                <div id="logContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let actionCount = 0;
+        let successCount = 0;
+        let errorCount = 0;
+        let agentRunning = false;
+        let taskCompleted = false;
+
+        // 检查后端服务状态
+        async function checkBackendStatus() {
+            const url = document.getElementById('backendUrl').value;
+            const indicator = document.getElementById('statusIndicator');
+            
+            try {
+                const response = await fetch(`${url}/health`);
+                if (response.ok) {
+                    indicator.classList.remove('offline');
+                    indicator.classList.add('online');
+                    return true;
+                }
+            } catch (error) {
+                console.error('后端服务连接失败:', error);
+            }
+            
+            indicator.classList.remove('online');
+            indicator.classList.add('offline');
+            return false;
+        }
+
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // 更新统计
+        function updateStats() {
+            document.getElementById('actionCount').textContent = actionCount;
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('errorCount').textContent = errorCount;
+        }
+
+        // 启动浏览器
+        async function launchBrowser() {
+            const backendUrl = document.getElementById('backendUrl').value;
+            const targetUrl = document.getElementById('targetUrl').value;
+            const width = parseInt(document.getElementById('browserWidth').value);
+            const height = parseInt(document.getElementById('browserHeight').value);
+            const launchBtn = document.getElementById('launchBtn');
+
+            if (!await checkBackendStatus()) {
+                alert('❌ 后端服务未连接！');
+                return;
+            }
+
+            launchBtn.disabled = true;
+            launchBtn.innerHTML = '🔄 启动中<span class="loading"></span>';
+            addLog('正在启动 Playwright 浏览器...', 'info');
+
+            try {
+                const response = await fetch(`${backendUrl}/playwright/launch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: targetUrl,
+                        width: width,
+                        height: height,
+                        headless: false
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    sessionId = data.session_id;
+                    document.getElementById('browserFrame').classList.add('active');
+                    document.getElementById('browserStatus').textContent = '运行中';
+                    document.getElementById('currentUrl').value = targetUrl;
+                    document.getElementById('executeBtn').disabled = false;
+                    document.getElementById('screenshotBtn').disabled = false;
+                    document.getElementById('closeBtn').disabled = false;
+                    
+                    addLog(`✅ 浏览器启动成功！会话ID: ${sessionId}`, 'success');
+                    
+                    // 自动截图
+                    await takeScreenshot();
+                } else {
+                    throw new Error(data.error || '启动失败');
+                }
+            } catch (error) {
+                addLog(`❌ 启动失败: ${error.message}`, 'error');
+                alert('❌ 启动浏览器失败: ' + error.message);
+            } finally {
+                launchBtn.disabled = false;
+                launchBtn.innerHTML = '🚀 启动浏览器';
+            }
+        }
+
+        // 执行任务（根据模式选择）
+        async function executeTask() {
+            const mode = document.getElementById('agentMode').value;
+            
+            if (mode === 'manual') {
+                await executeManual();
+            } else if (mode === 'step') {
+                await executeAgentStep();
+            } else if (mode === 'auto') {
+                await executeAgentAuto();
+            }
+        }
+
+        // 手动模式执行
+        async function executeManual() {
+            if (!sessionId) {
+                alert('请先启动浏览器！');
+                return;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+            const instruction = document.getElementById('instruction').value;
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!instruction.trim()) {
+                alert('请输入AI指令！');
+                return;
+            }
+
+            executeBtn.disabled = true;
+            executeBtn.innerHTML = '⚡ 执行中<span class="loading"></span>';
+            addLog(`执行指令: ${instruction}`, 'info');
+            actionCount++;
+            updateStats();
+
+            try {
+                const screenshot = await takeScreenshot(false);
+                
+                const analyzeResponse = await fetch(`${backendUrl}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: screenshot,
+                        screen_width: parseInt(document.getElementById('browserWidth').value),
+                        screen_height: parseInt(document.getElementById('browserHeight').value),
+                        instruction: instruction
+                    })
+                });
+
+                const analyzeData = await analyzeResponse.json();
+
+                if (!analyzeData.success) {
+                    throw new Error(analyzeData.error || 'AI分析失败');
+                }
+
+                addLog(`AI分析完成: ${analyzeData.function_name}`, 'info');
+
+                const executeResponse = await fetch(`${backendUrl}/playwright/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        action: analyzeData
+                    })
+                });
+
+                const executeData = await executeResponse.json();
+
+                if (executeData.success) {
+                    addLog(`✅ 操作执行成功: ${executeData.message}`, 'success');
+                    successCount++;
+                    await takeScreenshot();
+                } else {
+                    throw new Error(executeData.error || '执行失败');
+                }
+            } catch (error) {
+                addLog(`❌ 执行失败: ${error.message}`, 'error');
+                errorCount++;
+                alert('❌ 执行失败: ' + error.message);
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = '⚡ 执行任务';
+                updateStats();
+            }
+        }
+
+        // Agent 单步模式
+        async function executeAgentStep() {
+            if (!sessionId) {
+                alert('请先启动浏览器！');
+                return;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+            const task = document.getElementById('instruction').value;
+            const executeBtn = document.getElementById('executeBtn');
+            const continueBtn = document.getElementById('continueBtn');
+
+            if (!task.trim()) {
+                alert('请输入任务描述！');
+                return;
+            }
+
+            executeBtn.disabled = true;
+            executeBtn.innerHTML = '⚡ 执行中<span class="loading"></span>';
+            addLog(`启动 Agent 任务: ${task}`, 'info');
+
+            try {
+                const response = await fetch(`${backendUrl}/agent/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        task: task,
+                        screen_width: parseInt(document.getElementById('browserWidth').value),
+                        screen_height: parseInt(document.getElementById('browserHeight').value),
+                        mode: 'step'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    handleAgentStepResult(data);
+                    
+                    if (!data.completed) {
+                        continueBtn.style.display = 'inline-block';
+                        continueBtn.disabled = false;
+                    }
+                } else {
+                    throw new Error(data.error || '执行失败');
+                }
+            } catch (error) {
+                addLog(`❌ Agent 执行失败: ${error.message}`, 'error');
+                errorCount++;
+                alert('❌ 执行失败: ' + error.message);
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = '⚡ 执行任务';
+                updateStats();
+            }
+        }
+
+        // Agent 自动模式
+        async function executeAgentAuto() {
+            if (!sessionId) {
+                alert('请先启动浏览器！');
+                return;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+            const task = document.getElementById('instruction').value;
+            const executeBtn = document.getElementById('executeBtn');
+
+            if (!task.trim()) {
+                alert('请输入任务描述！');
+                return;
+            }
+
+            executeBtn.disabled = true;
+            executeBtn.innerHTML = '🤖 Agent运行中<span class="loading"></span>';
+            addLog(`启动 Agent 自动模式: ${task}`, 'info');
+            agentRunning = true;
+
+            try {
+                const response = await fetch(`${backendUrl}/agent/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        task: task,
+                        screen_width: parseInt(document.getElementById('browserWidth').value),
+                        screen_height: parseInt(document.getElementById('browserHeight').value),
+                        mode: 'auto'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addLog(`✅ Agent 完成！总步骤: ${data.total_steps}`, 'success');
+                    
+                    if (data.completed) {
+                        addLog(`📝 任务总结: ${data.summary}`, 'success');
+                        alert(`✅ 任务完成！\n\n${data.summary}`);
+                        taskCompleted = true;
+                    }
+                    
+                    // 显示所有步骤
+                    data.steps.forEach((step, index) => {
+                        if (step.success && step.actions) {
+                            step.actions.forEach(action => {
+                                addLog(`步骤${index + 1}: ${action.tool}`, 'info');
+                                successCount++;
+                            });
+                        }
+                    });
+                    
+                    await takeScreenshot();
+                } else {
+                    throw new Error(data.error || '执行失败');
+                }
+            } catch (error) {
+                addLog(`❌ Agent 执行失败: ${error.message}`, 'error');
+                errorCount++;
+                alert('❌ 执行失败: ' + error.message);
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = '⚡ 执行任务';
+                agentRunning = false;
+                updateStats();
+            }
+        }
+
+        // 继续 Agent 执行
+        async function continueAgent() {
+            const backendUrl = document.getElementById('backendUrl').value;
+            const continueBtn = document.getElementById('continueBtn');
+
+            continueBtn.disabled = true;
+            continueBtn.innerHTML = '▶️ 继续中<span class="loading"></span>';
+            addLog('继续 Agent 执行...', 'info');
+
+            try {
+                const response = await fetch(`${backendUrl}/agent/continue`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    handleAgentStepResult(data);
+                    
+                    if (data.completed) {
+                        continueBtn.style.display = 'none';
+                    }
+                } else {
+                    throw new Error(data.error || '继续失败');
+                }
+            } catch (error) {
+                addLog(`❌ 继续失败: ${error.message}`, 'error');
+                errorCount++;
+                alert('❌ 继续失败: ' + error.message);
+            } finally {
+                continueBtn.disabled = false;
+                continueBtn.innerHTML = '▶️ 继续';
+                updateStats();
+            }
+        }
+
+        // 处理 Agent 步骤结果
+        function handleAgentStepResult(data) {
+            addLog(`步骤 ${data.step} 完成`, 'info');
+            
+            if (data.actions) {
+                data.actions.forEach(action => {
+                    addLog(`执行: ${action.tool}`, 'info');
+                    if (action.result && action.result.status === 'success') {
+                        successCount++;
+                    } else if (action.result && action.result.status === 'completed') {
+                        addLog(`📝 ${action.result.summary}`, 'success');
+                        taskCompleted = true;
+                    }
+                });
+            }
+            
+            if (data.completed) {
+                addLog(`✅ 任务完成！总结: ${data.summary}`, 'success');
+                alert(`✅ 任务完成！\n\n${data.summary}`);
+                taskCompleted = true;
+            }
+            
+            actionCount++;
+            takeScreenshot();
+        }
+
+        // 截图
+        async function takeScreenshot(showLog = true) {
+            if (!sessionId) {
+                if (showLog) alert('请先启动浏览器！');
+                return null;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+
+            try {
+                const response = await fetch(`${backendUrl}/playwright/screenshot`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const screenshot = data.screenshot;
+                    document.getElementById('browserScreenshot').src = screenshot;
+                    if (showLog) addLog('📸 截图成功', 'success');
+                    return screenshot;
+                } else {
+                    throw new Error(data.error || '截图失败');
+                }
+            } catch (error) {
+                if (showLog) {
+                    addLog(`❌ 截图失败: ${error.message}`, 'error');
+                    alert('❌ 截图失败: ' + error.message);
+                }
+                return null;
+            }
+        }
+
+        // 关闭浏览器
+        async function closeBrowser() {
+            if (!sessionId) {
+                return;
+            }
+
+            const backendUrl = document.getElementById('backendUrl').value;
+            const closeBtn = document.getElementById('closeBtn');
+
+            closeBtn.disabled = true;
+            addLog('正在关闭浏览器...', 'info');
+
+            try {
+                const response = await fetch(`${backendUrl}/playwright/close`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // 清除 Agent 会话
+                    if (sessionId) {
+                        try {
+                            await fetch(`${backendUrl}/agent/clear`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ session_id: sessionId })
+                            });
+                        } catch (e) {
+                            console.error('清除 Agent 会话失败:', e);
+                        }
+                    }
+                    
+                    sessionId = null;
+                    agentRunning = false;
+                    taskCompleted = false;
+                    document.getElementById('browserFrame').classList.remove('active');
+                    document.getElementById('browserStatus').textContent = '未启动';
+                    document.getElementById('executeBtn').disabled = true;
+                    document.getElementById('continueBtn').style.display = 'none';
+                    document.getElementById('screenshotBtn').disabled = true;
+                    document.getElementById('closeBtn').disabled = true;
+                    
+                    addLog('✅ 浏览器已关闭', 'success');
+                } else {
+                    throw new Error(data.error || '关闭失败');
+                }
+            } catch (error) {
+                addLog(`❌ 关闭失败: ${error.message}`, 'error');
+                alert('❌ 关闭浏览器失败: ' + error.message);
+            } finally {
+                closeBtn.disabled = false;
+            }
+        }
+
+        // 页面加载时检查后端状态
+        window.addEventListener('load', () => {
+            checkBackendStatus();
+            setInterval(checkBackendStatus, 5000);
+            addLog('系统已就绪', 'info');
+        });
+
+        // 页面关闭时自动关闭浏览器
+        window.addEventListener('beforeunload', () => {
+            if (sessionId) {
+                closeBrowser();
+            }
+        });
+    </script>
+</body>
+</html>
