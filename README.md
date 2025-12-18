@@ -23,9 +23,10 @@ gemini-computer-use/
 ## 功能特性
 
 - 🖼️ **屏幕截图**: 使用浏览器原生API进行屏幕截取
-- 🤖 **AI分析**: 使用Gemini 3.0 Pro模型分析截图
-- 🎯 **多种操作**: 支持鼠标点击、悬停、拖动、滚动和键盘输入
+- 🤖 **AI分析**: 使用 Gemini 3.0 Pro/Flash 模型分析截图
+- 🎯 **多种操作**: 支持鼠标点击、双击、悬停、拖动、滚动和键盘输入
 - 🎭 **Playwright沙盒**: 在真实浏览器中执行AI建议的操作
+- 🖥️ **真实电脑控制**: 直接控制物理桌面，支持中文输入
 - 🤖 **Agent模式**: 自动化执行复杂任务，无需人工干预
 - 🔄 **实时状态**: 显示后端服务连接状态
 - 📊 **结果展示**: 美观的结果展示界面
@@ -51,13 +52,14 @@ playwright install chromium
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入你的Gemini API密钥：
+编辑 `.env` 文件，填入你的Gemini API密钥和可选的基础地址：
 
 ```
 GEMINI_API_KEY=your_actual_api_key_here
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 ```
 
-> 💡 从 [Google AI Studio](https://aistudio.google.com/app/apikey) 获取API密钥
+> 💡 从 [Google AI Studio](https://aistudio.google.com/app/apikey) 获取API密钥。如果使用代理地址，请修改 `GEMINI_BASE_URL`。
 
 ### 3. 启动后端服务
 
@@ -261,31 +263,39 @@ GET /playwright/sessions
 
 ## 可用工具
 
-系统支持以下11种计算机控制工具：
+系统支持以下 11 种计算机控制工具：
 
 ### 鼠标操作
 1. **mouse_click**: 鼠标点击（支持左键、中键、右键）
-2. **mouse_hover**: 鼠标悬停
-3. **mouse_drag**: 鼠标拖动
-4. **mouse_scroll**: 鼠标滚轮
+2. **mouse_double_click**: 鼠标双击（用于打开文件或启动程序）
+3. **mouse_hover**: 鼠标悬停
+4. **mouse_drag**: 鼠标拖动
+5. **mouse_scroll**: 鼠标滚轮
 
 ### 键盘操作
-5. **keyboard_type**: 键盘输入文本（支持可选的清除现有文本）
-6. **keyboard_press**: 键盘按键（支持组合键）
-7. **clear_text**: 清除当前输入框文本（全选+删除）
+6. **keyboard_type**: 键盘输入文本（支持中文输入，支持可选的清除现有文本）
+7. **keyboard_press**: 键盘按键（支持组合键）
+8. **clear_text**: 清除当前输入框文本（全选+删除）
 
 ### 组合操作
-8. **click_and_type**: 点击后输入文本（可选清除现有文本）
+9. **click_and_type**: 点击后输入文本（支持中文，可选清除现有文本）
 
 ### 时间控制
-9. **wait**: 等待指定时间（1-30秒）
+10. **wait**: 等待指定时间（1-30秒）
 
 ### 任务控制
-10. **task_complete**: 任务完成标记（Agent模式专用）
+11. **task_complete**: 任务完成标记（Agent模式专用）
 
 所有坐标使用归一化系统（0-1000范围），自动转换为实际像素坐标。
 
 ### 新增功能说明
+
+**中文输入支持**：
+- `keyboard_type` 和 `click_and_type` 现在通过剪贴板机制支持中文输入。
+- 解决了 `pyautogui` 在中文输入法环境下无法正确输入中文字符的问题。
+
+**mouse_double_click** 工具：
+- 新增双击功能，方便 AI 执行打开文件、启动程序等操作。
 
 **keyboard_type** 增强：
 - 新增 `clear_existing` 参数（默认false）
@@ -329,6 +339,7 @@ Agent 模式允许 AI 自动执行复杂的多步骤任务：
 ### API 接口
 - `POST /agent/start` - 启动 Agent 任务
 - `POST /agent/continue` - 继续执行（单步模式）
+- `POST /agent/stop` - 停止正在运行的任务
 - `GET /agent/status` - 查询任务状态
 - `POST /agent/clear` - 清除会话
 
