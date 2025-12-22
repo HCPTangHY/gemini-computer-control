@@ -380,6 +380,66 @@ class ToolCallHandler:
                     "reasoning": args.get('reasoning', '无说明')
                 })
             
+            elif tool_name == "new_tab":
+                response.update({
+                    "action": "new_tab",
+                    "url": args.get('url', ''),
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+
+            elif tool_name == "switch_tab":
+                response.update({
+                    "action": "switch_tab",
+                    "index": args.get('index', 0),
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+
+            elif tool_name == "list_tabs":
+                response.update({
+                    "action": "list_tabs",
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+            
+            elif tool_name == "reset_browser":
+                response.update({
+                    "action": "reset_browser",
+                    "url": args.get('url', 'about:blank'),
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+            
+            elif tool_name == "clear_cookies":
+                response.update({
+                    "action": "clear_cookies",
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+            
+            elif tool_name == "navigate":
+                response.update({
+                    "action": "navigate",
+                    "url": args.get('url', ''),
+                    "reasoning": args.get('reasoning', '无说明')
+                })
+            
+            elif tool_name == "add_note":
+                response.update({
+                    "action": "add_note",
+                    "content": args.get('content', ''),
+                    "category": args.get('category', 'info')
+                })
+            
+            elif tool_name == "list_notes":
+                response.update({
+                    "action": "list_notes",
+                    "category": args.get('category', 'all')
+                })
+            
+            elif tool_name == "clear_notes":
+                response.update({
+                    "action": "clear_notes",
+                    "category": args.get('category', 'all'),
+                    "confirm": args.get('confirm', False)
+                })
+            
             return response
             
         except Exception as e:

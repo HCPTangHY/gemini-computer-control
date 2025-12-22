@@ -150,8 +150,27 @@ class PlaywrightController:
                     "error": f"会话 {session_id} 不存在"
                 }
             
-            # 截图
-            screenshot_bytes = await session.page.screenshot(type='png', full_page=False)
+            page = session.page
+            if not page:
+                return {
+                    "success": False,
+                    "error": "当前没有活跃页面"
+                }
+            
+            # 截图（设置较短的超时时间，避免长时间阻塞）
+            try:
+                screenshot_bytes = await page.screenshot(type='png', full_page=False, timeout=10000)
+            except Exception as screenshot_error:
+                logger.warning(f"截图超时，尝试强制截图: {screenshot_error}")
+                # 尝试不等待页面稳定直接截图
+                try:
+                    screenshot_bytes = await page.screenshot(type='png', full_page=False, timeout=5000)
+                except:
+                    return {
+                        "success": False,
+                        "error": f"截图失败: {str(screenshot_error)}"
+                    }
+            
             screenshot_base64 = f"data:image/png;base64,{base64.b64encode(screenshot_bytes).decode()}"
             
             # 获取所有标签页信息
@@ -319,6 +338,61 @@ class PlaywrightController:
                     "active_index": session.active_page_index,
                     "message": f"当前共有 {len(pages)} 个标签页"
                 }
+
+            elif action_type == 'new_tab':
+                url = action.get('url', 'about:blank')
+                # 创建新页面
+                new_page = await session.context.new_page()
+                # 访问URL
+                await new_page.goto(url, wait_until='networkidle', timeout=30000)
+                # 更新活跃页面索引为新页面
+                session.active_page_index = len(session.context.pages) - 1
+                message = f"新建标签页并访问: {url}"
+
+            elif action_type == 'navigate':
+                url = action.get('url', 'about:blank')
+                # 在当前页面导航
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                message = f"导航到: {url}"
+
+            elif action_type == 'clear_cookies':
+                # 清除所有Cookies
+                await session.context.clear_cookies()
+                # 清除本地存储（通过在页面执行脚本）
+                try:
+                    await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+                except:
+                    pass  # 某些页面可能无法执行脚本
+                message = "已清除Cookies和本地存储"
+
+            elif action_type == 'reset_browser':
+                url = action.get('url', 'about:blank')
+                # 重置浏览器：创建全新的上下文
+                # 1. 获取当前浏览器实例
+                browser = session.browser
+                old_context = session.context
+                
+                # 2. 创建新的浏览器上下文（全新的指纹和缓存）
+                new_context = await browser.new_context(
+                    viewport={'width': page.viewport_size['width'], 'height': page.viewport_size['height']},
+                    user_agent=f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{120 + (hash(str(asyncio.get_event_loop().time())) % 10)}.0.0.0 Safari/537.36'
+                )
+                
+                # 3. 创建新页面并访问URL
+                new_page = await new_context.new_page()
+                await new_page.goto(url, wait_until='networkidle', timeout=30000)
+                
+                # 4. 更新会话
+                session.context = new_context
+                session.active_page_index = 0
+                
+                # 5. 关闭旧上下文
+                try:
+                    await old_context.close()
+                except:
+                    pass
+                
+                message = f"浏览器环境已重置，导航到: {url}"
 
             else:
                 return {

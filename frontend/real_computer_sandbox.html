@@ -221,6 +221,11 @@
                     <textarea id="instruction" placeholder="输入你想让 AI 在你电脑上执行的任务..."></textarea>
                 </div>
 
+                <div class="input-group">
+                    <label for="maxSteps">最大步骤数 (1-100)</label>
+                    <input type="number" id="maxSteps" value="20" min="1" max="100" style="padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                </div>
+
                 <div class="button-group">
                     <button class="btn-secondary" id="screenshotBtn" onclick="takeScreenshot()">
                         📸 截取屏幕
@@ -436,6 +441,7 @@
             subscribeEvents('real');
 
             try {
+                const maxSteps = parseInt(document.getElementById('maxSteps').value) || 20;
                 const response = await fetch(`${backendUrl}/agent/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -444,7 +450,8 @@
                         task: instruction,
                         screen_width: screenWidth,
                         screen_height: screenHeight,
-                        mode: 'auto'
+                        mode: 'auto',
+                        max_steps: maxSteps
                     })
                 });
                 const data = await response.json();

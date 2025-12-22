@@ -110,7 +110,8 @@ class AgentController:
             "conversation": conversation_manager,
             "step_count": 0,
             "completed": False,
-            "summary": None
+            "summary": None,
+            "notes": []  # 任务笔记本
         }
         
         logger.info(f"创建 Agent 会话: {session_id}")
@@ -147,23 +148,42 @@ class AgentController:
             }
         
         try:
-            # 1. 截取当前状态
-            if session.get("mode") == "real":
-                screenshot_result = await self.real_computer.take_screenshot()
-            elif session.get("mode") == "background":
-                if not self.background:
-                    return {
-                        "success": False,
-                        "error": "后台控制器未初始化，请先设置目标窗口"
-                    }
-                screenshot_result = await self.background.take_screenshot()
-            else:
-                screenshot_result = await self.playwright.take_screenshot(session_id)
+            # 1. 截取当前状态（带重试机制）
+            screenshot_result = None
+            max_screenshot_retries = 3
+            
+            for retry in range(max_screenshot_retries):
+                try:
+                    if session.get("mode") == "real":
+                        screenshot_result = await self.real_computer.take_screenshot()
+                    elif session.get("mode") == "background":
+                        if not self.background:
+                            return {
+                                "success": False,
+                                "error": "后台控制器未初始化，请先设置目标窗口"
+                            }
+                        screenshot_result = await self.background.take_screenshot()
+                    else:
+                        screenshot_result = await self.playwright.take_screenshot(session_id)
+                    
+                    if screenshot_result.get("success"):
+                        break
+                    else:
+                        logger.warning(f"截图尝试 {retry + 1}/{max_screenshot_retries} 失败: {screenshot_result.get('error')}")
+                except Exception as e:
+                    logger.warning(f"截图尝试 {retry + 1}/{max_screenshot_retries} 异常: {str(e)}")
+                    screenshot_result = {"success": False, "error": str(e)}
                 
-            if not screenshot_result.get("success"):
+                if retry < max_screenshot_retries - 1:
+                    import asyncio
+                    await asyncio.sleep(2)  # 等待2秒后重试
+            
+            if not screenshot_result or not screenshot_result.get("success"):
+                error_msg = screenshot_result.get('error', '未知错误') if screenshot_result else '截图返回为空'
+                logger.error(f"截图最终失败: {error_msg}")
                 return {
                     "success": False,
-                    "error": f"截图失败: {screenshot_result.get('error')}"
+                    "error": f"截图失败（已重试{max_screenshot_retries}次）: {error_msg}"
                 }
             
             screenshot_data = screenshot_result["screenshot"]
@@ -217,7 +237,8 @@ class AgentController:
 1. **并行函数调用**：你可以在一次响应中返回多个函数调用，系统会按顺序执行它们。
 2. **重复使用工具**：你可以多次调用同一个工具，例如多次点击不同位置。
 3. **等待UI刷新**：在需要等待页面加载或UI更新时，使用 wait 工具（1-30秒）。
-4. **组合操作示例**：
+4. **笔记功能**：使用 add_note 记录重要发现、进度、待办事项。使用 list_notes 查看已记录的内容。
+5. **组合操作示例**：
    - 点击搜索框 → 输入文本 → 点击搜索按钮 → 等待3秒
    - 这些操作可以在一次响应中全部返回
 
@@ -230,15 +251,23 @@ class AgentController:
                     tabs_list = "\n".join([f"- [{t['index']}] {t['title']} ({t['url']}){' [当前活跃]' if t['is_active'] else ''}" for t in screenshot_result["tabs"]])
                     tabs_info = f"\n当前打开的标签页列表:\n{tabs_list}\n你可以使用 switch_tab(index) 切换标签页。\n"
 
+                # 构建笔记摘要
+                notes_summary = ""
+                if session.get("notes"):
+                    recent_notes = session["notes"][-5:]  # 最近5条笔记
+                    notes_list = "\n".join([f"  - [{n['category']}] {n['content']}" for n in recent_notes])
+                    notes_summary = f"\n\n你的笔记（最近{len(recent_notes)}条）:\n{notes_list}\n"
+
                 prompt = f"""继续执行任务。
 
 当前位置: {current_url}
-已执行步骤: {session['step_count']}{tabs_info}
+已执行步骤: {session['step_count']}{tabs_info}{notes_summary}
 
 提醒：
 - 你可以一次返回多个函数调用来提高效率
 - 在操作之间使用 wait 工具等待UI刷新（建议1-3秒）
 - 可以重复使用同一个工具
+- 使用 add_note 记录重要信息，使用 list_notes 查看所有笔记
 
 请分析当前截图，决定下一步操作。如果任务已完成，调用 task_complete 工具。"""
             
@@ -376,6 +405,90 @@ class AgentController:
                             # 在浏览器中执行
                             exec_result = await self.playwright.execute_action(session_id, action_data)
                         result = exec_result
+                    elif tool_name in ["switch_tab", "list_tabs", "new_tab", "reset_browser", "clear_cookies", "navigate"]:
+                        # 浏览器操作（仅在浏览器模式下有效）
+                        if session.get("mode") == "browser":
+                            action_data = {
+                                "action": tool_name,
+                                **args
+                            }
+                            exec_result = await self.playwright.execute_action(session_id, action_data)
+                            result = exec_result
+                        else:
+                            result = {
+                                "status": "error",
+                                "message": f"工具 {tool_name} 仅在浏览器模式下可用"
+                            }
+                    elif tool_name == "add_note":
+                        # 添加笔记
+                        import datetime
+                        note = {
+                            "content": args.get("content", ""),
+                            "category": args.get("category", "info"),
+                            "timestamp": datetime.datetime.now().isoformat(),
+                            "step": session["step_count"] + 1
+                        }
+                        session["notes"].append(note)
+                        result = {
+                            "status": "success",
+                            "message": f"笔记已添加 [{note['category']}]: {note['content'][:50]}...",
+                            "note_count": len(session["notes"])
+                        }
+                        logger.info(f"添加笔记 [{note['category']}]: {note['content'][:100]}")
+                        # 发布笔记更新事件到前端
+                        event_manager.publish_notes(session_id, session["notes"], "add")
+                    elif tool_name == "list_notes":
+                        # 列出笔记
+                        category_filter = args.get("category", "all")
+                        notes = session.get("notes", [])
+                        if category_filter != "all":
+                            notes = [n for n in notes if n.get("category") == category_filter]
+                        
+                        notes_summary = []
+                        for i, note in enumerate(notes):
+                            notes_summary.append({
+                                "index": i + 1,
+                                "category": note.get("category", "info"),
+                                "content": note.get("content", ""),
+                                "step": note.get("step", 0),
+                                "time": note.get("timestamp", "")
+                            })
+                        
+                        result = {
+                            "status": "success",
+                            "notes": notes_summary,
+                            "total_count": len(session.get("notes", [])),
+                            "filtered_count": len(notes_summary),
+                            "filter": category_filter
+                        }
+                        logger.info(f"列出笔记: {len(notes_summary)} 条 (筛选: {category_filter})")
+                        # 发布笔记事件到前端
+                        event_manager.publish_notes(session_id, session.get("notes", []), "list")
+                    elif tool_name == "clear_notes":
+                        # 清空笔记
+                        if not args.get("confirm", False):
+                            result = {
+                                "status": "error",
+                                "message": "需要 confirm=true 才能清空笔记"
+                            }
+                        else:
+                            category_filter = args.get("category", "all")
+                            if category_filter == "all":
+                                cleared_count = len(session.get("notes", []))
+                                session["notes"] = []
+                            else:
+                                original_notes = session.get("notes", [])
+                                session["notes"] = [n for n in original_notes if n.get("category") != category_filter]
+                                cleared_count = len(original_notes) - len(session["notes"])
+                            
+                            result = {
+                                "status": "success",
+                                "message": f"已清空 {cleared_count} 条笔记",
+                                "remaining_count": len(session["notes"])
+                            }
+                            logger.info(f"清空笔记: {cleared_count} 条 (筛选: {category_filter})")
+                            # 发布笔记更新事件到前端
+                            event_manager.publish_notes(session_id, session["notes"], "clear")
                     else:
                         # 本地执行
                         result = execute_tool_call(tool_name, args)
@@ -470,6 +583,8 @@ class AgentController:
             最终结果
         """
         all_steps = []
+        consecutive_failures = 0
+        max_consecutive_failures = 3  # 允许最多连续3次失败
         self.running_sessions.add(session_id)
         
         try:
@@ -478,14 +593,25 @@ class AgentController:
             all_steps.append(result)
             
             if not result.get("success"):
-                return {
-                    "success": False,
-                    "error": result.get("error"),
-                    "steps": all_steps
-                }
+                consecutive_failures += 1
+                logger.warning(f"首次步骤失败 ({consecutive_failures}/{max_consecutive_failures}): {result.get('error')}")
+                # 首次失败也给机会重试
+                if consecutive_failures >= max_consecutive_failures:
+                    event_manager.publish_error(
+                        session_id=session_id,
+                        error=result.get("error", "首次步骤失败"),
+                        step=len(all_steps)
+                    )
+                    return {
+                        "success": False,
+                        "error": result.get("error"),
+                        "steps": all_steps
+                    }
+            else:
+                consecutive_failures = 0
             
             # 循环执行直到完成或达到最大步骤
-            while result.get("continue") and len(all_steps) < max_steps:
+            while len(all_steps) < max_steps:
                 # 检查是否被手动停止
                 if session_id not in self.running_sessions:
                     logger.info(f"会话 {session_id} 已被手动停止")
@@ -497,12 +623,34 @@ class AgentController:
                         "total_steps": len(all_steps),
                         "steps": all_steps
                     }
+                
+                # 检查任务是否已完成
+                session = self.sessions.get(session_id)
+                if session and session.get("completed"):
+                    break
+                
+                # 如果上一步不需要继续，则退出
+                if not result.get("continue", True) and result.get("success"):
+                    break
 
                 result = await self.run_agent_step(session_id)
                 all_steps.append(result)
                 
                 if not result.get("success"):
-                    break
+                    consecutive_failures += 1
+                    logger.warning(f"步骤 {len(all_steps)} 失败 ({consecutive_failures}/{max_consecutive_failures}): {result.get('error')}")
+                    
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error(f"连续失败 {consecutive_failures} 次，终止任务")
+                        break
+                    
+                    # 等待一段时间后继续尝试
+                    import asyncio
+                    await asyncio.sleep(3)
+                    continue
+                else:
+                    consecutive_failures = 0
+                    
         finally:
             if session_id in self.running_sessions:
                 self.running_sessions.remove(session_id)
@@ -538,16 +686,31 @@ class AgentController:
                 "total_steps": len(all_steps),
                 "steps": all_steps
             }
-        else:
-            # 发布错误事件
+        elif consecutive_failures >= max_consecutive_failures:
+            # 连续失败导致终止
+            last_error = all_steps[-1].get("error", "未知错误") if all_steps else "未知错误"
             event_manager.publish_error(
                 session_id=session_id,
-                error="任务未完成",
+                error=f"连续失败 {consecutive_failures} 次: {last_error}",
                 step=len(all_steps)
             )
             return {
                 "success": False,
-                "error": "任务未完成",
+                "error": f"连续失败 {consecutive_failures} 次: {last_error}",
+                "completed": False,
+                "total_steps": len(all_steps),
+                "steps": all_steps
+            }
+        else:
+            # 其他情况（不应该到达这里）
+            event_manager.publish_error(
+                session_id=session_id,
+                error="任务异常终止",
+                step=len(all_steps)
+            )
+            return {
+                "success": False,
+                "error": "任务异常终止",
                 "completed": False,
                 "total_steps": len(all_steps),
                 "steps": all_steps

@@ -219,6 +219,26 @@ class EventManager:
             "error": error,
             "step": step
         })
+    
+    def publish_notes(
+        self,
+        session_id: str,
+        notes: list,
+        action: str = "update"
+    ):
+        """
+        发布笔记更新事件
+        
+        Args:
+            session_id: 会话 ID
+            notes: 笔记列表
+            action: 操作类型 (add, list, clear, update)
+        """
+        self.publish(session_id, "notes", {
+            "notes": notes,
+            "action": action,
+            "count": len(notes)
+        })
 
 
 # 全局单例

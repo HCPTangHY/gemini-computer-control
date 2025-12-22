@@ -370,11 +370,22 @@
 
             <div class="input-group">
                 <label for="agentMode">执行模式</label>
-                <select id="agentMode">
+                <select id="agentMode" onchange="updateMaxStepsVisibility()">
                     <option value="manual">手动模式</option>
                     <option value="step">Agent单步模式</option>
                     <option value="auto">Agent自动模式</option>
                 </select>
+            </div>
+
+            <div class="input-group" id="maxStepsGroup" style="display: none;">
+                <label for="maxSteps">最大步骤数 (1-100)</label>
+                <input 
+                    type="number" 
+                    id="maxSteps" 
+                    value="20"
+                    min="1"
+                    max="100"
+                >
             </div>
 
             <div class="input-group" style="flex-direction: row; align-items: center; gap: 10px; padding-top: 25px;">
@@ -449,6 +460,15 @@
             <div class="log-panel">
                 <div class="log-title">操作日志</div>
                 <div id="logContainer"></div>
+            </div>
+
+            <!-- AI 笔记面板 -->
+            <div class="log-panel" id="notesPanel" style="display: none; margin-top: 15px; background: #fff8e1;">
+                <div class="log-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>📝 AI 笔记 (<span id="notesCount">0</span>条)</span>
+                    <button onclick="toggleNotesPanel()" style="padding: 2px 8px; font-size: 12px; cursor: pointer;">收起</button>
+                </div>
+                <div id="notesContainer"></div>
             </div>
         </div>
     </div>
@@ -782,6 +802,16 @@
                 }
             });
             
+            eventSource.addEventListener('notes', (e) => {
+                try {
+                    const event = JSON.parse(e.data);
+                    const data = event.data;
+                    updateNotesDisplay(data.notes, data.action);
+                } catch (err) {
+                    console.error('解析笔记事件失败:', err);
+                }
+            });
+            
             eventSource.onerror = () => {
                 addLog('SSE 连接断开，尝试重连...', 'error');
             };
@@ -821,6 +851,7 @@
             subscribeEvents(sessionId);
 
             try {
+                const maxSteps = parseInt(document.getElementById('maxSteps').value) || 20;
                 const response = await fetch(`${backendUrl}/agent/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -829,7 +860,8 @@
                         task: task,
                         screen_width: parseInt(document.getElementById('browserWidth').value),
                         screen_height: parseInt(document.getElementById('browserHeight').value),
-                        mode: 'auto'
+                        mode: 'auto',
+                        max_steps: maxSteps
                     })
                 });
 
@@ -957,6 +989,17 @@
                 if (data.success) {
                     const screenshot = data.screenshot;
                     document.getElementById('browserScreenshot').src = screenshot;
+                    
+                    // 更新 URL
+                    if (data.url) {
+                        document.getElementById('currentUrl').value = data.url;
+                    }
+                    
+                    // 自动更新标签页列表（后端截图接口返回 tabs 数据）
+                    if (data.tabs && data.tabs.length > 0) {
+                        updateTabList(data.tabs, data.active_index);
+                    }
+                    
                     if (showLog) addLog('📸 截图成功', 'success');
                     return screenshot;
                 } else {
@@ -971,6 +1014,28 @@
             }
         }
 
+        // 更新标签页列表UI
+        function updateTabList(tabs, activeIndex) {
+            currentTabs = tabs;
+            const tabList = document.getElementById('tabList');
+            tabList.innerHTML = '';
+            tabs.forEach(tab => {
+                const tabBtn = document.createElement('button');
+                tabBtn.className = tab.index === activeIndex ? 'btn-primary' : 'btn-secondary';
+                tabBtn.style.padding = '4px 12px';
+                tabBtn.style.fontSize = '12px';
+                tabBtn.style.width = 'auto';
+                tabBtn.style.whiteSpace = 'nowrap';
+                tabBtn.style.maxWidth = '150px';
+                tabBtn.style.overflow = 'hidden';
+                tabBtn.style.textOverflow = 'ellipsis';
+                tabBtn.textContent = tab.title || '新标签页';
+                tabBtn.title = tab.url;
+                tabBtn.onclick = () => switchTab(tab.index);
+                tabList.appendChild(tabBtn);
+            });
+        }
+
         // 刷新标签页列表
         async function refreshTabs() {
             if (!sessionId) return;
@@ -978,25 +1043,8 @@
             try {
                 const response = await fetch(`${backendUrl}/playwright/tabs?session_id=${sessionId}`);
                 const data = await response.json();
-                if (data.success) {
-                    currentTabs = data.tabs;
-                    const tabList = document.getElementById('tabList');
-                    tabList.innerHTML = '';
-                    data.tabs.forEach(tab => {
-                        const tabBtn = document.createElement('button');
-                        tabBtn.className = tab.index === data.active_index ? 'btn-primary' : 'btn-secondary';
-                        tabBtn.style.padding = '4px 12px';
-                        tabBtn.style.fontSize = '12px';
-                        tabBtn.style.width = 'auto';
-                        tabBtn.style.whiteSpace = 'nowrap';
-                        tabBtn.style.maxWidth = '150px';
-                        tabBtn.style.overflow = 'hidden';
-                        tabBtn.style.textOverflow = 'ellipsis';
-                        tabBtn.textContent = tab.title || '新标签页';
-                        tabBtn.title = tab.url;
-                        tabBtn.onclick = () => switchTab(tab.index);
-                        tabList.appendChild(tabBtn);
-                    });
+                if (data.success && data.tabs) {
+                    updateTabList(data.tabs, data.active_index);
                 }
             } catch (e) {
                 console.error('刷新标签页失败:', e);
@@ -1081,10 +1129,83 @@
             }
         }
 
+        // 更新最大步骤数输入框的可见性
+        function updateMaxStepsVisibility() {
+            const mode = document.getElementById('agentMode').value;
+            const maxStepsGroup = document.getElementById('maxStepsGroup');
+            maxStepsGroup.style.display = (mode === 'auto') ? 'flex' : 'none';
+        }
+
+        // 更新笔记显示
+        function updateNotesDisplay(notes, action) {
+            const panel = document.getElementById('notesPanel');
+            const container = document.getElementById('notesContainer');
+            const countSpan = document.getElementById('notesCount');
+            
+            if (!notes || notes.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            panel.style.display = 'block';
+            countSpan.textContent = notes.length;
+            
+            // 分类颜色
+            const categoryColors = {
+                'info': '#2196F3',
+                'progress': '#4CAF50',
+                'todo': '#FF9800',
+                'important': '#E91E63',
+                'error': '#f44336'
+            };
+            
+            const categoryIcons = {
+                'info': 'ℹ️',
+                'progress': '✅',
+                'todo': '📋',
+                'important': '⭐',
+                'error': '❌'
+            };
+            
+            container.innerHTML = notes.map((note, index) => {
+                const color = categoryColors[note.category] || '#666';
+                const icon = categoryIcons[note.category] || '📝';
+                const time = note.timestamp ? new Date(note.timestamp).toLocaleTimeString() : '';
+                return `
+                    <div style="padding: 8px; margin: 5px 0; background: white; border-radius: 6px; border-left: 4px solid ${color};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span style="font-weight: bold; color: ${color};">${icon} ${note.category.toUpperCase()}</span>
+                            <span style="font-size: 11px; color: #999;">步骤${note.step} · ${time}</span>
+                        </div>
+                        <div style="font-size: 13px; color: #333;">${note.content}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // 自动滚动到底部
+            container.scrollTop = container.scrollHeight;
+            
+            // 记录日志
+            if (action === 'add') {
+                addLog(`📝 笔记已添加，共 ${notes.length} 条`, 'info');
+            }
+        }
+
+        // 切换笔记面板显示
+        function toggleNotesPanel() {
+            const container = document.getElementById('notesContainer');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
         // 页面加载时检查后端状态
         window.addEventListener('load', () => {
             checkBackendStatus();
             setInterval(checkBackendStatus, 5000);
+            updateMaxStepsVisibility();
             addLog('系统已就绪', 'info');
         });
 

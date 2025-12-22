@@ -670,6 +670,13 @@ TOOL_IMPLEMENTATIONS: Dict[str, Callable] = {
     "task_complete": task_complete,
     "switch_tab": lambda **kwargs: {"status": "success", "message": "正在切换标签页"},
     "list_tabs": lambda **kwargs: {"status": "success", "message": "正在获取标签页列表"},
+    "new_tab": lambda **kwargs: {"status": "success", "message": "正在新建标签页"},
+    "reset_browser": lambda **kwargs: {"status": "success", "message": "正在重置浏览器环境"},
+    "clear_cookies": lambda **kwargs: {"status": "success", "message": "正在清除Cookies"},
+    "navigate": lambda **kwargs: {"status": "success", "message": "正在导航到新页面"},
+    "add_note": lambda **kwargs: {"status": "success", "message": "笔记已添加"},
+    "list_notes": lambda **kwargs: {"status": "success", "message": "获取笔记列表"},
+    "clear_notes": lambda **kwargs: {"status": "success", "message": "笔记已清空"},
 }
 
 # 所有工具声明的列表
@@ -705,6 +712,123 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "OBJECT",
             "properties": {}
+        }
+    },
+    {
+        "name": "new_tab",
+        "description": "在浏览器中新建一个标签页并访问指定的网址。仅在浏览器自动化模式下有效。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {
+                    "type": "STRING",
+                    "description": "要在新标签页中打开的网址。"
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "reset_browser",
+        "description": "重置浏览器环境，创建全新的浏览器上下文（新的指纹、清空缓存和Cookies）。适用于需要全新浏览器状态的场景，如规避检测、清除登录状态等。仅在浏览器自动化模式下有效。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {
+                    "type": "STRING",
+                    "description": "重置后要访问的网址。如果不提供则访问 about:blank。"
+                },
+                "reasoning": {
+                    "type": "STRING",
+                    "description": "重置浏览器的原因说明。"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "clear_cookies",
+        "description": "清除当前浏览器上下文的所有Cookies和本地存储，但保留当前页面。适用于需要清除登录状态但不需要完全重置浏览器的场景。仅在浏览器自动化模式下有效。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "reasoning": {
+                    "type": "STRING",
+                    "description": "清除Cookies的原因说明。"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "navigate",
+        "description": "在当前标签页导航到指定的网址。与new_tab不同，这会在当前页面进行跳转而不是新建标签页。仅在浏览器自动化模式下有效。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {
+                    "type": "STRING",
+                    "description": "要导航到的网址。"
+                },
+                "reasoning": {
+                    "type": "STRING",
+                    "description": "导航的原因说明。"
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "add_note",
+        "description": "添加一条笔记到任务笔记本。用于记录重要信息、发现、进度、待办事项等。笔记会在整个任务期间保留，帮助你追踪任务状态和记住关键信息。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "content": {
+                    "type": "STRING",
+                    "description": "笔记内容。"
+                },
+                "category": {
+                    "type": "STRING",
+                    "enum": ["info", "progress", "todo", "important", "error"],
+                    "description": "笔记分类。info=一般信息，progress=进度记录，todo=待办事项，important=重要发现，error=错误记录。"
+                }
+            },
+            "required": ["content"]
+        }
+    },
+    {
+        "name": "list_notes",
+        "description": "列出当前任务的所有笔记。用于回顾之前记录的信息、检查进度、查看待办事项等。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "category": {
+                    "type": "STRING",
+                    "enum": ["info", "progress", "todo", "important", "error", "all"],
+                    "description": "要筛选的笔记分类。默认为 all（所有分类）。"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "clear_notes",
+        "description": "清空当前任务的所有笔记。谨慎使用，清空后无法恢复。",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "category": {
+                    "type": "STRING",
+                    "enum": ["info", "progress", "todo", "important", "error", "all"],
+                    "description": "要清空的笔记分类。默认为 all（清空所有）。"
+                },
+                "confirm": {
+                    "type": "BOOLEAN",
+                    "description": "确认清空。必须为 true 才会执行清空操作。"
+                }
+            },
+            "required": ["confirm"]
         }
     }
 ]

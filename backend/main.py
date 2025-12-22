@@ -749,7 +749,8 @@ def agent_start():
         "task": "用户任务描述",
         "screen_width": 1280,
         "screen_height": 720,
-        "mode": "step" 或 "auto"
+        "mode": "step" 或 "auto",
+        "max_steps": 20 (可选，自动模式下的最大步骤数，默认20，范围1-100)
     }
     
     返回：
@@ -769,6 +770,8 @@ def agent_start():
         screen_width = int(data.get('screen_width', 1280))
         screen_height = int(data.get('screen_height', 720))
         mode = data.get('mode', 'step')  # step: 单步执行, auto: 自动循环
+        max_steps = int(data.get('max_steps', 20))  # 最大步骤数
+        max_steps = max(1, min(100, max_steps))  # 限制范围 1-100
         
         if not session_id:
             return jsonify({
@@ -803,14 +806,15 @@ def agent_start():
         agent_controller.create_session(session_id, task, screen_width, screen_height, mode=controller_mode)
         
         if mode == 'auto':
-            # 自动循环模式（需要更长超时）
+            # 自动循环模式（需要更长超时，根据步数动态调整）
+            timeout = max(300, max_steps * 30)  # 每步最多30秒，最少5分钟
             result = run_async(
                 agent_controller.run_agent_loop(
                     session_id=session_id,
                     initial_task=task,
-                    max_steps=20
+                    max_steps=max_steps
                 ),
-                timeout=600  # 10分钟超时
+                timeout=timeout
             )
         else:
             # 单步模式
@@ -1026,6 +1030,8 @@ def agent_events(session_id):
     event: error
     data: {"type": "error", "data": {"error": "..."}}
     """
+    import time as time_module
+    
     def generate():
         # 订阅事件
         event_queue = event_manager.subscribe(session_id)
@@ -1047,8 +1053,8 @@ def agent_events(session_id):
                     yield f"event: {event_type}\ndata: {event_data}\n\n"
                     
                 except queue.Empty:
-                    # 超时，发送心跳保持连接
-                    yield f"event: heartbeat\ndata: {json.dumps({'timestamp': asyncio.get_event_loop().time() if asyncio.get_event_loop().is_running() else 0})}\n\n"
+                    # 超时，发送心跳保持连接（使用普通 time 模块避免异步问题）
+                    yield f"event: heartbeat\ndata: {json.dumps({'timestamp': time_module.time()})}\n\n"
                     
         except GeneratorExit:
             logger.info(f"SSE 客户端断开: {session_id}")

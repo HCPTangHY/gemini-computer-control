@@ -396,6 +396,10 @@
                     <div class="input-group">
                         <textarea id="instruction" placeholder="输入你想让 AI 在目标窗口中执行的任务...&#10;例如：在记事本中输入 Hello World"></textarea>
                     </div>
+                    <div class="input-group">
+                        <label for="maxSteps">最大步骤数 (1-100)</label>
+                        <input type="number" id="maxSteps" value="20" min="1" max="100">
+                    </div>
                 </div>
 
                 <!-- 操作按钮 -->
@@ -784,6 +788,7 @@
 
             try {
                 // 使用特殊的 session_id 标识后台模式
+                const maxSteps = parseInt(document.getElementById('maxSteps').value) || 20;
                 const response = await fetch(`${backendUrl}/agent/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -792,7 +797,8 @@
                         task: instruction,
                         screen_width: windowWidth,
                         screen_height: windowHeight,
-                        mode: 'auto'
+                        mode: 'auto',
+                        max_steps: maxSteps
                     })
                 });
                 const data = await response.json();
